@@ -239,18 +239,25 @@ textarea{width:100%;border:1px solid var(--line);background:var(--ice);border-ra
 
 <script>
 /* ---------- data ---------- */
+const LB = [5,10,15,18,20,25,26,30,35,40,45,50,53,60,70];
+const nearestLb = kg => LB.reduce((a,b)=>Math.abs(b-kg*2.2046)<Math.abs(a-kg*2.2046)?b:a);
 const STORE_KEY = 'icetime.v1';
 const DEFAULTS = {
   people:[
-    {id:'p1', color:'#C8102E', w:{heavy:16, mid:12, light:8}}
+    {id:'p1', color:'#C8102E', w:{heavy:35, mid:25, light:15}}
   ],
-  logs:[], weighins:[], sound:true, voice:false
+  logs:[], weighins:[], sound:true, voice:false, units:'lb'
 };
 let S = load(); S.people = S.people.slice(0,1);
 const ME = () => S.people[0];
 function load(){
-  try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ const d = JSON.parse(raw); return Object.assign(structuredClone(DEFAULTS), d); } }catch(e){}
+  try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ return migrate(JSON.parse(raw)); } }catch(e){}
   return structuredClone(DEFAULTS);
+}
+function migrate(d){
+  if(d.units!=='lb' && Array.isArray(d.people)) d.people.forEach(p=>{ for(const k in p.w) p.w[k]=nearestLb(p.w[k]); });
+  d.units='lb';
+  const out = Object.assign(structuredClone(DEFAULTS), d); out.people = out.people.slice(0,1); return out;
 }
 function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){ toast('Could not save. Storage is blocked in this browser.'); } }
 
@@ -502,7 +509,7 @@ function enterSeg(){
   $('#tName').textContent = seg.kind==='rest' ? seg.label : ex.name;
   $('#tNote').textContent = seg.kind==='rest' ? `Next: ${ex.name}` : (seg.note || '');
   $('#tCue').textContent = seg.kind==='rest' ? '' : ex.cue;
-  $('#tBells').innerHTML = ex.bell ? `<span class="chip" style="--c:var(--red)">${ME().w[ex.bell]} kg bell</span>` : '';
+  $('#tBells').innerHTML = ex.bell ? `<span class="chip" style="--c:var(--red)">${ME().w[ex.bell]} lb bell</span>` : '';
   const nx = T.sess.slice(T.i+1).find(s=>s.kind!=='rest');
   $('#tNext').textContent = seg.kind!=='rest' && nx ? `Then: ${EX[nx.ex].name}` : '';
   if(T.i>0){ if(seg.kind==='rest'){ beep(520,260); buzz(200); } else { beep(1180,300); buzz([120,60,120]); flash(); } }
@@ -626,14 +633,13 @@ function renderMoves(){
   $('#v-moves').innerHTML = groups.map(([t,ids])=>`<h2 class="group-title">${t}</h2>` + ids.map(id=>{
     const e = EX[id];
     return `<div class="move"><svg viewBox="0 -12 200 210" class="fig" aria-label="${esc(e.name)} animation"><g data-ex="${id}"></g></svg>
-      <div><h3>${esc(e.name)}</h3>${e.bell?`<span class="bell-tag">${bellName[e.bell]}: ${ME().w[e.bell]} kg</span>`:''}
+      <div><h3>${esc(e.name)}</h3>${e.bell?`<span class="bell-tag">${bellName[e.bell]}: ${ME().w[e.bell]} lb</span>`:''}
       <p>${esc(e.cue)}</p><a href="https://www.youtube.com/results?search_query=${encodeURIComponent('kettlebell '+e.name.replace(/\(.*\)/,'')+' form')}" target="_blank" rel="noopener">Watch form videos</a></div></div>`;
   }).join('')).join('');
   document.querySelectorAll('#v-moves g[data-ex]').forEach(g=>makeFigure(g, g.dataset.ex));
 }
 
 /* ---------- us ---------- */
-const KG = [4,6,8,10,12,14,16,18,20,24,28,32];
 function spark(pid){
   const w = S.weighins.filter(x=>x.pid===pid).sort((a,b)=>a.date<b.date?-1:1).slice(-30);
   if(w.length<2) return `<p class="muted" style="margin:8px 0 0">${w.length ? `Latest: ${w[0].value} lb on ${fromIso(w[0].date).toLocaleDateString()}` : 'No weigh-ins yet.'}</p>`;
@@ -644,11 +650,11 @@ function spark(pid){
     <p class="muted" style="margin:4px 0 0">Latest ${vals[vals.length-1]} lb. ${diff>0?'+':''}${diff} lb since ${fromIso(w[0].date).toLocaleDateString()}.</p>`;
 }
 function renderYou(){
-  const sel = (p,k) => `<select data-w="${p.id}:${k}">${KG.map(v=>`<option value="${v}"${p.w[k]==v?' selected':''}>${v} kg</option>`).join('')}</select>`;
+  const sel = (p,k) => `<select data-w="${p.id}:${k}">${[...new Set([...LB,p.w[k]])].sort((a,b)=>a-b).map(v=>`<option value="${v}"${p.w[k]==v?' selected':''}>${v} lb</option>`).join('')}</select>`;
   $('#v-you').innerHTML = S.people.map(p=>`
     <div class="card" style="--c:${p.color}">
       <h3>Your bells</h3>
-      <div class="field"><span>Starting point</span><span class="row-btns" style="margin:0"><button class="btn btn-quiet btn-sm" data-preset="16,12,8">Heavier</button><button class="btn btn-quiet btn-sm" data-preset="8,6,4">Lighter</button></span></div>
+      <div class="field"><span>Starting point</span><span class="row-btns" style="margin:0"><button class="btn btn-quiet btn-sm" data-preset="35,25,15">Heavier</button><button class="btn btn-quiet btn-sm" data-preset="20,15,10">Lighter</button></span></div>
       <div class="field"><span>Swings</span>${sel(p,'heavy')}</div>
       <div class="field"><span>Presses, rows, lunges, squats</span>${sel(p,'mid')}</div>
       <div class="field"><span>Curls, triceps, halos</span>${sel(p,'light')}</div>
@@ -682,7 +688,7 @@ function renderYou(){
   };
   $('#bImport').onchange=e=>{
     const f=e.target.files[0]; if(!f) return;
-    f.text().then(t=>{ const d=JSON.parse(t); if(!Array.isArray(d.logs)) throw 0; S=Object.assign(structuredClone(DEFAULTS),d); S.people=S.people.slice(0,1); save(); renderYou(); toast('Backup restored'); }).catch(()=>toast('That file is not an Ice Time backup'));
+    f.text().then(t=>{ const d=JSON.parse(t); if(!Array.isArray(d.logs)) throw 0; S=migrate(d); save(); renderYou(); toast('Backup restored'); }).catch(()=>toast('That file is not an Ice Time backup'));
   };
   $('#bReset').onclick=()=>{
     openSheet(`<h2>Erase everything?</h2><p class="muted">This deletes all logged sessions, weigh-ins and settings in this browser.</p><div class="row-btns"><button class="btn btn-sm" id="rYes" style="background:var(--red);color:#fff">Erase everything</button><button class="btn btn-quiet btn-sm" id="rNo">Cancel</button></div>`);
