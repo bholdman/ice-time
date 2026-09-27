@@ -202,7 +202,7 @@ textarea{width:100%;border:1px solid var(--line);background:var(--ice);border-ra
   <button class="tab" role="tab" data-v="today" aria-selected="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>Tonight</button>
   <button class="tab" role="tab" data-v="cal" aria-selected="false"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Calendar</button>
   <button class="tab" role="tab" data-v="moves" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="5"/><path d="M8.5 11.5 8 7a4 4 0 0 1 8 0l-.5 4.5"/></svg>Moves</button>
-  <button class="tab" role="tab" data-v="you" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5.5a3 3 0 0 1 0 5.5M18 14c2 .7 3 2.8 3 6"/></svg>Us</button>
+  <button class="tab" role="tab" data-v="you" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.8 3.1-6 7-6s7 2.2 7 6"/></svg>You</button>
 </div></nav>
 
 <div class="timer" id="timer" hidden>
@@ -242,12 +242,12 @@ textarea{width:100%;border:1px solid var(--line);background:var(--ice);border-ra
 const STORE_KEY = 'icetime.v1';
 const DEFAULTS = {
   people:[
-    {id:'p1', name:'Brian', color:'#C8102E', on:true, w:{heavy:16, mid:12, light:8}},
-    {id:'p2', name:'Wife',  color:'#1D4E9E', on:true, w:{heavy:8,  mid:6,  light:4}}
+    {id:'p1', color:'#C8102E', w:{heavy:16, mid:12, light:8}}
   ],
   logs:[], weighins:[], sound:true, voice:false
 };
-let S = load();
+let S = load(); S.people = S.people.slice(0,1);
+const ME = () => S.people[0];
 function load(){
   try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ const d = JSON.parse(raw); return Object.assign(structuredClone(DEFAULTS), d); } }catch(e){}
   return structuredClone(DEFAULTS);
@@ -448,14 +448,11 @@ function renderToday(){
       <button data-t="A" aria-pressed="${type==='A'}">Day A: conditioning</button>
       <button data-t="B" aria-pressed="${type==='B'}">Day B: upper body</button>
     </div>
-    ${done.length ? `<div class="done-note">Done tonight: ${done.map(l=>`${esc(WORKOUTS[l.type].name)} with ${l.who.map(id=>esc(person(id)?.name||'')).join(' and ')}`).join('; ')}. Going again is fine too.</div>` : ''}
+    ${done.length ? `<div class="done-note">Done tonight: ${done.map(l=>esc(WORKOUTS[l.type].name)).join(', ')}. Going again is fine too.</div>` : ''}
     <div class="plan">
       <div class="plan-row"><div class="plan-min">4<small>min</small></div><div><div class="plan-name">Warm-up</div><div class="plan-moves">Halos, goblet squat pry, world's greatest stretch, lateral lunges</div></div></div>
       <div class="plan-row"><div class="plan-min">12<small>min</small></div><div><div class="plan-name">${W.rounds} rounds</div><div class="plan-moves">${esc(moves)}</div></div></div>
       <div class="plan-row"><div class="plan-min">4<small>min</small></div><div><div class="plan-name">Stretch</div><div class="plan-moves">Couch stretch, adductor rock-back, pigeon, child's pose</div></div></div>
-    </div>
-    <div class="who"><div class="who-label">Who's training</div>
-      ${S.people.map(p=>`<button class="chip" style="--c:${p.color}" data-p="${p.id}" aria-pressed="${p.on}"><span class="dot"></span>${esc(p.name)}</button>`).join('')}
     </div>
     <button class="btn btn-go" id="go">Start workout</button>
     <div class="stats">
@@ -464,11 +461,7 @@ function renderToday(){
       <div class="stat"><b>${st.total}</b><span>total sessions</span></div>
     </div>`;
   document.querySelectorAll('#v-today .seg button').forEach(b=>b.onclick=()=>{ chosen=b.dataset.t; renderToday(); });
-  document.querySelectorAll('#v-today .chip').forEach(b=>b.onclick=()=>{ const p=person(b.dataset.p); p.on=!p.on; save(); renderToday(); });
-  $('#go').onclick = ()=>{
-    if(!S.people.some(p=>p.on)){ toast('Pick at least one person to train'); return; }
-    startTimer(type);
-  };
+  $('#go').onclick = ()=>startTimer(type);
 }
 
 /* ---------- timer ---------- */
@@ -509,8 +502,7 @@ function enterSeg(){
   $('#tName').textContent = seg.kind==='rest' ? seg.label : ex.name;
   $('#tNote').textContent = seg.kind==='rest' ? `Next: ${ex.name}` : (seg.note || '');
   $('#tCue').textContent = seg.kind==='rest' ? '' : ex.cue;
-  const on = S.people.filter(p=>p.on);
-  $('#tBells').innerHTML = ex.bell ? on.map(p=>`<span class="chip" style="--c:${p.color}">${esc(p.name)} ${p.w[ex.bell]} kg</span>`).join('') : '';
+  $('#tBells').innerHTML = ex.bell ? `<span class="chip" style="--c:var(--red)">${ME().w[ex.bell]} kg bell</span>` : '';
   const nx = T.sess.slice(T.i+1).find(s=>s.kind!=='rest');
   $('#tNext').textContent = seg.kind!=='rest' && nx ? `Then: ${EX[nx.ex].name}` : '';
   if(T.i>0){ if(seg.kind==='rest'){ beep(520,260); buzz(200); } else { beep(1180,300); buzz([120,60,120]); flash(); } }
@@ -559,24 +551,19 @@ $('#tEnd').onclick = ()=>{
 function closeTimer(){ clearInterval(T.tick); T.sess=null; wakeOff(); $('#timer').hidden = true; document.body.style.overflow=''; show(current); }
 function finish(partial){
   clearInterval(T.tick); wakeOff(); beep(880,160); setTimeout(()=>beep(1320,320),200); buzz([200,100,200]);
-  const on = S.people.filter(p=>p.on).map(p=>p.id);
   $('#tCtrl').hidden = true; $('#tEnd').hidden = true;
   $('#tPhase').textContent = partial ? 'Ended early' : 'Done';
   $('#tLeft').textContent = '';
   $('#tBody').innerHTML = `
     <div style="width:100%;padding-top:10px">
       <h2 class="t-name" style="text-align:left;margin:0 0 6px">${partial ? 'Log what you did' : 'Session complete'}</h2>
-      <p class="muted" style="margin:0 0 16px">${esc(WORKOUTS[T.type].name)}. Check who finished it.</p>
-      <div class="who">${S.people.map(p=>`<button class="chip" style="--c:${p.color}" data-p="${p.id}" aria-pressed="${on.includes(p.id)}"><span class="dot"></span>${esc(p.name)}</button>`).join('')}</div>
+      <p class="muted" style="margin:0 0 16px">${esc(WORKOUTS[T.type].name)}</p>
       <label class="muted" for="fNote">Notes (weights, how it felt)</label>
       <textarea id="fNote" placeholder="Swings felt easy, go up a bell next time"></textarea>
       <div class="row-btns" style="margin-top:14px"><button class="btn" id="fSave" style="flex:1">Save to log</button><button class="btn btn-quiet" id="fSkip">Don't log</button></div>
     </div>`;
-  const who = new Set(on);
-  document.querySelectorAll('#tBody .chip').forEach(b=>b.onclick=()=>{ const id=b.dataset.p; who.has(id)?who.delete(id):who.add(id); b.setAttribute('aria-pressed', who.has(id)); });
   $('#fSave').onclick = ()=>{
-    if(!who.size){ toast('Pick who did it'); return; }
-    S.logs.push({date:todayIso(), type:T.type, who:[...who], note:$('#fNote').value.trim(), partial:!!partial, ts:Date.now()}); save();
+    S.logs.push({date:todayIso(), type:T.type, note:$('#fNote').value.trim(), partial:!!partial, ts:Date.now()}); save();
     resetTimerBody(); closeTimer(); toast('Saved to log');
   };
   $('#fSkip').onclick = ()=>{ resetTimerBody(); closeTimer(); };
@@ -595,11 +582,10 @@ function renderCal(){
     const d = new Date(start); d.setDate(start.getDate()+i);
     if(i>=35 && d.getMonth()!==m) break;
     const ds = iso(d), logs = logsOn(ds), pl = planFor(d);
-    const whoDone = [...new Set(logs.flatMap(l=>l.who))];
     cells += `<button class="day${d.getMonth()!==m?' out':''}${ds===tIso?' today':''}${logs.length?' done':''}" data-d="${ds}" aria-label="${d.toDateString()}${logs.length?', done':''}">
       <span>${d.getDate()}</span>
       <span class="plan-tag">${pl||''}</span>
-      <span class="dots">${whoDone.map(id=>`<i style="--c:${person(id)?.color||'#888'}"></i>`).join('')}</span></button>`;
+      <span class="dots">${logs.map(()=>'<i style="--c:var(--red)"></i>').join('')}</span></button>`;
   }
   $('#v-cal').innerHTML = `
     <div class="cal-head">
@@ -608,7 +594,7 @@ function renderCal(){
       <button class="icon-btn" id="cNext" aria-label="Next month"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
     <div class="cal-grid">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="cal-dow">${x}</div>`).join('')}${cells}</div>
-    <div class="legend"><span>A conditioning, B upper body</span>${S.people.map(p=>`<span><i style="--c:${p.color}"></i>${esc(p.name)}</span>`).join('')}</div>`;
+    <div class="legend"><span>A conditioning, B upper body</span><span><i style="--c:var(--red)"></i>Session done</span></div>`;
   $('#cPrev').onclick=()=>{ calMonth.setMonth(calMonth.getMonth()-1); renderCal(); };
   $('#cNext').onclick=()=>{ calMonth.setMonth(calMonth.getMonth()+1); renderCal(); };
   document.querySelectorAll('.day').forEach(b=>b.onclick=()=>daySheet(b.dataset.d));
@@ -618,15 +604,14 @@ function daySheet(ds){
   const future = ds > todayIso();
   openSheet(`<h2>${d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</h2>
     <p class="muted">${pl ? `Planned: Day ${pl}, ${WORKOUTS[pl].name.toLowerCase()}` : 'Rest day'}</p>
-    ${logs.map(l=>`<div class="log-item"><div><b>${esc(WORKOUTS[l.type].name)}</b>${l.partial?' (partial)':''}<br><span class="muted">${l.who.map(id=>esc(person(id)?.name||'')).join(' and ')}${l.note?`. ${esc(l.note)}`:''}</span></div><button class="linkish" data-ts="${l.ts}">Remove</button></div>`).join('') || '<p class="muted" style="border-top:1px solid var(--line);padding-top:10px">Nothing logged.</p>'}
+    ${logs.map(l=>`<div class="log-item"><div><b>${esc(WORKOUTS[l.type].name)}</b>${l.partial?' (partial)':''}${l.note?`<br><span class="muted">${esc(l.note)}</span>`:''}</div><button class="linkish" data-ts="${l.ts}">Remove</button></div>`).join('') || '<p class="muted" style="border-top:1px solid var(--line);padding-top:10px">Nothing logged.</p>'}
     ${future ? '' : `<p class="muted" style="margin:16px 0 6px">Add a session you did without the timer</p>
     <div class="row-btns"><button class="btn btn-sm" data-add="A">Log Day A</button><button class="btn btn-sm" data-add="B">Log Day B</button><button class="btn btn-quiet btn-sm" id="sClose">Close</button></div>`}
     ${future ? '<div class="row-btns"><button class="btn btn-quiet btn-sm" id="sClose">Close</button></div>' : ''}`);
   $('#sClose').onclick = closeSheet;
   document.querySelectorAll('#sheetPanel [data-ts]').forEach(b=>b.onclick=()=>{ S.logs = S.logs.filter(l=>String(l.ts)!==b.dataset.ts); save(); renderCal(); daySheet(ds); });
   document.querySelectorAll('#sheetPanel [data-add]').forEach(b=>b.onclick=()=>{
-    const who = S.people.filter(p=>p.on).map(p=>p.id); if(!who.length) who.push(S.people[0].id);
-    S.logs.push({date:ds, type:b.dataset.add, who, note:'', ts:Date.now()}); save(); renderCal(); daySheet(ds); toast('Saved to log');
+    S.logs.push({date:ds, type:b.dataset.add, note:'', ts:Date.now()}); save(); renderCal(); daySheet(ds); toast('Saved to log');
   });
 }
 function openSheet(html){ $('#sheetPanel').innerHTML = html; $('#sheet').hidden = false; const f = $('#sheetPanel button'); f && f.focus(); }
@@ -641,7 +626,7 @@ function renderMoves(){
   $('#v-moves').innerHTML = groups.map(([t,ids])=>`<h2 class="group-title">${t}</h2>` + ids.map(id=>{
     const e = EX[id];
     return `<div class="move"><svg viewBox="0 -12 200 210" class="fig" aria-label="${esc(e.name)} animation"><g data-ex="${id}"></g></svg>
-      <div><h3>${esc(e.name)}</h3>${e.bell?`<span class="bell-tag">${bellName[e.bell]}: ${S.people.map(p=>`${esc(p.name)} ${p.w[e.bell]} kg`).join(', ')}</span>`:''}
+      <div><h3>${esc(e.name)}</h3>${e.bell?`<span class="bell-tag">${bellName[e.bell]}: ${ME().w[e.bell]} kg</span>`:''}
       <p>${esc(e.cue)}</p><a href="https://www.youtube.com/results?search_query=${encodeURIComponent('kettlebell '+e.name.replace(/\(.*\)/,'')+' form')}" target="_blank" rel="noopener">Watch form videos</a></div></div>`;
   }).join('')).join('');
   document.querySelectorAll('#v-moves g[data-ex]').forEach(g=>makeFigure(g, g.dataset.ex));
@@ -662,12 +647,12 @@ function renderYou(){
   const sel = (p,k) => `<select data-w="${p.id}:${k}">${KG.map(v=>`<option value="${v}"${p.w[k]==v?' selected':''}>${v} kg</option>`).join('')}</select>`;
   $('#v-you').innerHTML = S.people.map(p=>`
     <div class="card" style="--c:${p.color}">
-      <h3><span class="dot"></span>${esc(p.name)}</h3>
-      <div class="field"><label for="n-${p.id}">Name</label><input type="text" id="n-${p.id}" data-name="${p.id}" value="${esc(p.name)}"></div>
+      <h3>Your bells</h3>
+      <div class="field"><span>Starting point</span><span class="row-btns" style="margin:0"><button class="btn btn-quiet btn-sm" data-preset="16,12,8">Heavier</button><button class="btn btn-quiet btn-sm" data-preset="8,6,4">Lighter</button></span></div>
       <div class="field"><span>Swings</span>${sel(p,'heavy')}</div>
       <div class="field"><span>Presses, rows, lunges, squats</span>${sel(p,'mid')}</div>
       <div class="field"><span>Curls, triceps, halos</span>${sel(p,'light')}</div>
-      <div class="weigh"><input type="number" inputmode="decimal" step="0.1" placeholder="Body weight (lb)" id="wi-${p.id}" aria-label="Body weight for ${esc(p.name)}"><button class="btn btn-sm" data-wi="${p.id}">Log weigh-in</button></div>
+      <div class="weigh"><input type="number" inputmode="decimal" step="0.1" placeholder="Body weight (lb)" id="wi-${p.id}" aria-label="Body weight"><button class="btn btn-sm" data-wi="${p.id}">Log weigh-in</button></div>
       ${spark(p.id)}
     </div>`).join('') + `
     <div class="card">
@@ -682,7 +667,7 @@ function renderYou(){
       <p class="muted" style="margin:0">Monday, Wednesday, Friday: Day A. Tuesday, Thursday: Day B. Weekends: rest, walk, or skate. When a round feels easy two sessions in a row, move up one bell size.</p>
     </div>`;
   document.querySelectorAll('[data-w]').forEach(s=>s.onchange=()=>{ const [id,k]=s.dataset.w.split(':'); person(id).w[k]=+s.value; save(); toast('Bell weights saved'); });
-  document.querySelectorAll('[data-name]').forEach(i=>i.onchange=()=>{ const v=i.value.trim(); if(v){ person(i.dataset.name).name=v; save(); renderYou(); } });
+  document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{ const [h,m,l]=b.dataset.preset.split(',').map(Number); ME().w={heavy:h,mid:m,light:l}; save(); renderYou(); toast('Bell weights saved'); });
   document.querySelectorAll('[data-wi]').forEach(b=>b.onclick=()=>{
     const id=b.dataset.wi, v=parseFloat($('#wi-'+id).value);
     if(!(v>50 && v<600)){ toast('Enter a weight in pounds'); return; }
@@ -697,7 +682,7 @@ function renderYou(){
   };
   $('#bImport').onchange=e=>{
     const f=e.target.files[0]; if(!f) return;
-    f.text().then(t=>{ const d=JSON.parse(t); if(!Array.isArray(d.logs)) throw 0; S=Object.assign(structuredClone(DEFAULTS),d); save(); renderYou(); toast('Backup restored'); }).catch(()=>toast('That file is not an Ice Time backup'));
+    f.text().then(t=>{ const d=JSON.parse(t); if(!Array.isArray(d.logs)) throw 0; S=Object.assign(structuredClone(DEFAULTS),d); S.people=S.people.slice(0,1); save(); renderYou(); toast('Backup restored'); }).catch(()=>toast('That file is not an Ice Time backup'));
   };
   $('#bReset').onclick=()=>{
     openSheet(`<h2>Erase everything?</h2><p class="muted">This deletes all logged sessions, weigh-ins and settings in this browser.</p><div class="row-btns"><button class="btn btn-sm" id="rYes" style="background:var(--red);color:#fff">Erase everything</button><button class="btn btn-quiet btn-sm" id="rNo">Cancel</button></div>`);
